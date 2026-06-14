@@ -3,7 +3,10 @@ type Disconnect = () -> ()
 type OnTransitionListener = (v: Context<unknown>) -> ()
 
 -- FUNCTION TYPES
-type State<T = unknown> = (contextData: T) -> ()
+type State<T = unknown> = {
+	name: string,
+	fn: (data: T, cleanup: (cleanupFn: () -> ()) -> ()) -> ()
+}
 
 -- TABLE TYPES
 type Context<T> = {
@@ -12,33 +15,26 @@ type Context<T> = {
 }
 
 type StateManagerConfig<T> = {
-	states: { [string]: State<T> },
-	initialState: string,
-	initialData: { T },
+	_currentData: T,
+	_currentState: State<T>,
 }
 
-type StateManagerInfo = {
+type StateManagerInfo<T> = StateManagerConfig<T> & {
 	_runningThread: thread?,
-	_availableStates: { [string]: true },
-	_currentStateName: string,
-	_context: Context<unknown>?,
+	_context: Context<T>?,
+	_cleanup: () -> ()?,
 	_on_trans_ls: { OnTransitionListener },
 }
 
-type StateManager = StateManagerInfo & {
-	-- METAMETHOD
-	__index: StateManager,
+type StateManager<T> = StateManagerInfo<T> & {
+	__index: StateManager<T>,
 
-	-- CONSTRUCTOR
-	init: (StateManagerConfig: StateManagerConfig<unknown>) -> StateManager,
+	init: (StateManagerConfig: StateManagerConfig<T>) -> StateManager<T>,
 
-	-- MAIN FUNCTIONS
-	transition: <T>(self: StateManager, state_name: string) -> (),
-	update: (self: StateManager, new_data: { [string]: unknown }) -> (),
-	destroy: (self: StateManager) -> (),
+	transition: (self: StateManager<T>, state_name: string) -> (),
+	destroy: (self: StateManager<T>) -> (),
 
-	-- EVENT/lISTENERS
-	onTransition: <T>(self: StateManager, callback: (new_state_context: Context<T>) -> ()) -> Disconnect,
+	onTransition: (self: StateManager<T>, callback: (new_state_context: Context<T>) -> ()) -> Disconnect,
 }
 
 local StateManager = {}
@@ -51,26 +47,6 @@ local function FireListener(listeners: { OnTransitionListener }, context: Contex
 	end
 end
 
--- VERIFICATION FUNCS
-local function verifyInputStates(states: { [string]: State<> }): ()
-	if type(states) ~= "table" then
-		error(`{states} must of type table and not nil.`)
-	end
-	for k, v in states do
-		if type(k) ~= "string" or type(v) ~= "function" then
-			error("recorded state values must be of type function.")
-		end
-	end
-	return states
-end
-
-local function verifyInitial(initial: string, states: { [string]: State<> }): ()
-	if type(initial) ~= "string" or not states[initial] then
-		error("initial state must be a string and recorded in states.")
-	end
-	return initial
-end
-
 --[=[
     @function init
     @within StateManager
@@ -78,15 +54,12 @@ end
     @param StateManagerConfig -- a dictionary that contains the necessary information to initialize the StateManager, including states, initialState, and initialData.
 	@return StateManager
 ]=]
-function StateManager.init(StateConfig: StateManagerConfig<unknown>): StateManager
-	local self = setmetatable({}, StateManager) :: StateManagerInfo
+function StateManager.init(StateConfig: StateManagerConfig<unknown>): StateManager<unknown>
+	local self = setmetatable({}, StateManager) :: StateManagerInfo<unknown>
 	self._runningThread = nil
-	self._availableStates = verifyInputStates(StateConfig.states)
-	self._currentStateName = verifyInitial(StateConfig.initialState, StateConfig.states)
-	self._context = {
-		data = StateConfig.initialData or {},
-		_active = true,
-	}
+	self._currentState = StateConfig._currentState
+	self._context = { _data = StateConfig._currentData, _active = false }
+	self._cleanup = nil
 
 	self._on_trans_ls = {}
 	return self
@@ -100,44 +73,31 @@ end
 	@param target_data? -- main data to modify (Position, Rotation, etc.), could be nil.
 	@return ()
 ]=]
-function StateManager:transition<T>(state_name: string): ()
+function StateManager:transition(state: State<unknown>): ()
 	if not self._context._active then
 		error("cannot transition to new state: concurrency control.")
 	end
 
-	if not self._availableStates[state_name] then
-		error(`target state ({state_name}) is not recorded in finite state machine.`)
+	if self._cleanup then
+		self._cleanup()
+		self._cleanup = nil
 	end
 
 	if self._runningThread then
 		self._context._active = true
 		task.cancel(self._runningThread)
+		self._runningThread = nil
 	end
 
-	local state_callback = self._availableStates[state_name] :: State<T>
-	self._currentStateName = state_name
-	self._context._active = true
-	self._runningThread = task.spawn(state_callback, self._context.data)
+	local function cleanup(fn: () -> ()): ()
+		self._cleanup = fn
+	end
+
+	self._currentState = state
+	self._context._active = false
+	self._runningThread = task.spawn(state.fn, self._context._data, cleanup)
 
 	FireListener(self._on_trans_ls, self._context)
-end
-
---[=[
-    @function update
-    @within StateManager
-
-    @param new_data -- dictionary of certain contents to modify
-	@return ()
-
-	@note this function adds new data, if the inputted data is already existent, it will overwrite it.
-]=]
-function StateManager:update(new_data: { [string]: unknown }): ()
-	if not self._context._active then
-		error("cannot update new_data: concurrency control.")
-	end
-	for k, v in new_data do
-		self._context.data[k] = v
-	end
 end
 
 --[=[
@@ -147,11 +107,17 @@ end
 	@return ()
 ]=]
 function StateManager:destroy(): ()
+	if self._cleanup then
+        self._cleanup()
+        self._cleanup = nil
+    end
+
 	if self._runningThread then
 		task.cancel(self._runningThread)
 	end
+
 	self._runningThread = nil
-	self._currentStateName = nil
+	self._currentState = nil
 	self._context = nil
 end
 
@@ -163,7 +129,7 @@ end
 
 	@return ()
 ]=]
-function StateManager:onTransition<T>(fn: (new_state_context: Context<T>) -> ()): Disconnect
+function StateManager:onTransition(fn: (new_state_context: Context<unknown>) -> ()): Disconnect
 	local ls: { OnTransitionListener } = self._on_trans_ls
 	ls[#ls + 1] = fn
 	local running: boolean = true
@@ -182,4 +148,4 @@ function StateManager:onTransition<T>(fn: (new_state_context: Context<T>) -> ())
 	end
 end
 
-return StateManager :: StateManager
+return StateManager :: StateManager<unknown>
