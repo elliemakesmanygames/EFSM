@@ -136,7 +136,7 @@ function StateManager:onTransition(fn: (new_state_context: Context<unknown>) -> 
 	ls[#ls + 1] = fn
 	local running: boolean = true
 	return function()
-		if not running then
+		if not running  then
 			return
 		end
 		running = false
