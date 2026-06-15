@@ -5,6 +5,7 @@
 		}
 	],
 	"settings": {
-		"stylua.targetReleaseVersion": "latest"
+		"stylua.targetReleaseVersion": "latest",
+		"luau-lsp.studioPlugin.enabled": true
 	}
 }

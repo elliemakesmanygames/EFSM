@@ -3,7 +3,8 @@ type OnTransitionListener<T = unknown> = (v: Context<T>) -> ()
 
 type State<T = unknown> = {
     name: string,
-    action: (data: T, cleanupFn: (() -> ()) -> (), fsm: StateManager<T>) -> ()
+    action: (data: T, cleanupFn: (() -> ()) -> (), fsm: StateManager<T>) -> (),
+	guard: ((data: T) -> boolean)?
 }
 
 type Context<T = unknown> = {
@@ -66,8 +67,7 @@ end
     @function transition
     @within StateManager
 
-    @param state_name -- target state_name to change to
-	@param target_data? -- main data to modify (Position, Rotation, etc.), could be nil.
+    @param state -- the state to transition to. must be of type State.
 	@return ()
 ]=]
 function StateManager:transition(state: State<unknown>): ()
@@ -84,6 +84,10 @@ function StateManager:transition(state: State<unknown>): ()
 		self.context.active = true
 		task.cancel(self.runningThread)
 		self.runningThread = nil
+	end
+
+	if state.guard and not state.guard(self.context.data) then
+		error(`guard condition failed for state: {state.name}`)
 	end
 
 	local executeFn = state.action or safeCB
