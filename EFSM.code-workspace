@@ -1,9 +1,5 @@
 {
-	"folders": [
-		{
-			"path": "."
-		}
-	],
+	"folders": [],
 	"settings": {
 		"stylua.targetReleaseVersion": "latest",
 		"luau-lsp.studioPlugin.enabled": true
