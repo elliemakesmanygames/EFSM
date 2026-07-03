@@ -1,76 +1,65 @@
 type Disconnect = () -> ()
-type OnTransitionListener<T = unknown> = (v: Context<T>) -> ()
 
-type State<T = unknown> = {
+type OnTransitionListener = (v: Context) -> ()
+type Listener = OnTransitionListener
+
+type State<T=unknown> = {
     name: string,
-    action: (data: T, cleanupFn: (() -> ()) -> (), fsm: StateManager<T>) -> (),
+    action: (data: T, cleanupFn: (() -> ()) -> ()) -> (),
 	guard: ((data: T) -> boolean)?
 }
 
-type Context<T = unknown> = {
-	data: T,
-	currentState: State<T>?,
-	previousState: State<T>?
+type Context<D=unknown,C=unknown,P=unknown> = {
+	data: {[string]: D},
+	currentState: State<C>?,
+	previousState: State<P>?
 }
 
-type StateManagerConfig<T> = {
-	currentData: T,
-	currentState: State<T>
+type StateManager = {
+	Init: (data: unknown, state: State) -> StateManager,
+	Transition: (self: StateManager, state: State) -> (),
+	Destroy: (self: StateManager) -> (),
+	OnTransition: (self: StateManager, callback: (new_state_context: Context) -> ()) -> Disconnect
 }
 
-type StateManagerInfo<T> = {
-	runningThread: thread?,
-	context: Context<T>?,
-	cleanup: (() -> ())?,
-	active: boolean,
-	on_trans_ls: { OnTransitionListener<T> }
-}
-
-type StateManager<T> = StateManagerInfo<T> & {
-	__index: StateManager<T>,
-	init: (StateManagerConfig: StateManagerConfig<T>) -> StateManager<T>,
-	transition: (self: StateManager<T>, state_name: string) -> (),
-	destroy: (self: StateManager<T>) -> (),
-	onTransition: (self: StateManager<T>, callback: (new_state_context: Context<T>) -> ()) -> Disconnect
-}
-
-local StateManager = {} :: StateManager<unknown>
+local StateManager = {} :: StateManager
 StateManager.__index = StateManager
 
-local function safeCB(...) warn(`no function specified, resorted to default callback : {...}`) end
+local function safeCB<T...>(...:T...) warn(`no function specified, resorted to default callback : {table.pack(...)}`) end
 
-local function FireListener(listeners: { OnTransitionListener<unknown> }, context: Context<unknown>): ()
+local function FireListener(listeners: { Listener }, context: Context): ()
 	for i = 1, #listeners do
 		listeners[i](context)
 	end
 end
 
 --[=[
-    @function init
+    @function Init
     @within StateManager
 
-    @param StateManagerConfig -- a dictionary that contains the necessary information to initialize the StateManager, including states, initialState, and initialData.
+    @param data -- the initial data for the state manager.
+    @param state -- the initial state for the state manager.
 	@return StateManager
 ]=]
-function StateManager.init(StateConfig: StateManagerConfig<unknown>): StateManagerInfo<unknown>
+function StateManager.Init<T>(data: T, state: State<T>): StateManager
 	local self = setmetatable({}, StateManager)
 	self.runningThread = nil
-	self.context = { data = StateConfig.currentData, currentState = StateConfig.currentState, previousState = nil }
+	self.context = { data = data, currentState = state, previousState = nil }
 	self.cleanup = nil
 	self.active = false
-
 	self.on_trans_ls = {}
-	return self :: StateManagerInfo<unknown>
+	
+	return self :: StateManager
 end
 
 --[=[
-    @function transition
+    @function Transition
     @within StateManager
 
-    @param state -- the state to transition to. must be of type State.
+    @param state -- the state to transition, must be of type State.
 	@return ()
 ]=]
-function StateManager:transition(state: State<unknown>): ()
+function StateManager:Transition(state: State): ()
 	if self.active then
 		error("cannot transition to new state: concurrency control.")
 	end
@@ -81,7 +70,7 @@ function StateManager:transition(state: State<unknown>): ()
 	end
 
 	if self.runningThread then
-		self.context.active = true
+		self.active = true
 		task.cancel(self.runningThread)
 		self.runningThread = nil
 	end
@@ -95,20 +84,21 @@ function StateManager:transition(state: State<unknown>): ()
 		self.cleanup = fn
 	end
 
-	self.context.active = false
-	self.runningThread = task.spawn(executeFn, self.context.data, registerCleanup, self)
-	self.currentState = state
+	self.context.previousState = self.context.currentState
+	self.active = false
+	self.runningThread = task.spawn(executeFn, self.context.data, registerCleanup)
+	self.context.currentState = state
 
 	FireListener(self.on_trans_ls, self.context)
 end
 
 --[=[
-    @function destroy
+    @function Destroy
     @within StateManager
 
 	@return ()
 ]=]
-function StateManager:destroy(): ()
+function StateManager:Destroy(): ()
 	if self.cleanup then
         self.cleanup()
         self.cleanup = nil
@@ -118,21 +108,26 @@ function StateManager:destroy(): ()
 		task.cancel(self.runningThread)
 	end
 
+	if self.context then
+		self.context.currentState = nil
+		self.context.previousState = nil
+		self.context.data = nil
+	end
+
 	self.runningThread = nil
-	self.currentState = nil
 	self.context = nil
 end
 
 --[=[
-    @function onTransition
+    @function OnTransition
     @within StateManager
 
 	@param callback -- callback function that runs when a transition to a new state happens. takes in the new_state_context as a parameter.
 
 	@return ()
 ]=]
-function StateManager:onTransition(fn: (new_state_context: Context<unknown>) -> ()): Disconnect
-	local ls: { OnTransitionListener<unknown> } = self.on_trans_ls
+function StateManager:OnTransition(fn: (new_state_context: Context) -> ()): Disconnect
+	local ls: { OnTransitionListener } = self.on_trans_ls
 	ls[#ls + 1] = fn
 	local running: boolean = true
 	return function()
