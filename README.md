@@ -8,8 +8,6 @@
 race condition, a CancellationToken design is implemented to regulate asynchrounous functions and soft kill. Although unfinished, it can still operate basic tasks such as initiating, transitioning state-to-state and
 updating data. However, this model is restrictive when it comes to death states, and is somewhat a less flexible design as it requires more user input than usual.
 
-**Design sheet is within the src/Design folder and example script is shown in src/Example. The module itself is packed into a single script. The design is of type .jam aka Figjam.**
-
 # License
 <p align="center">
   EFSM is released under the <a href="LICENSE.md">MIT License</a>.
