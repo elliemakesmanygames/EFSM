@@ -1,5 +1,3 @@
-**This module is unfinished and archived, as I have not given it enough time and will not give it more time. However, if you wish to fork this and publish it alongside credits, it is possible.**
-
 # Ellie's Finite State Machine (EFSM)
 [![Source on GitHub](https://img.shields.io/badge/Source-GitHub-6e40c9?style=for-the-badge&logo=github&logoColor=white)](https://github.com/blackingsplash/EFSM)
 [![Creator Roblox Profile](https://img.shields.io/badge/Get%20it%20on-Roblox-00A2FF?style=for-the-badge&logo=roblox&logoColor=white)](https://www.roblox.com/users/4083725238/profile)
