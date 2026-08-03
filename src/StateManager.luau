@@ -22,9 +22,10 @@ type StateManager = {
 	read OnTransition: (self: StateManager, callback: (new_state_context: Context) -> ()) -> Disconnect,
 }
 
-const StateManager = {} :: { StateManager }
+local StateManager = {} :: StateManager
+StateManager.__index = StateManager
 
-const function safeCB<T...>(...:T...) warn(`no function specified, resorted to default callback : {table.pack(...)}`) end
+local function safeCB<T...>(...:T...) warn(`no function specified, resorted to default callback : {table.pack(...)}`) end
 
 const function FireListener(listeners: { Listener }, context: Context): ()
 	for i = 1, #listeners do
