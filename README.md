@@ -1,6 +1,5 @@
 # Ellie's Finite State Machine (EFSM)
 [![Source on GitHub](https://img.shields.io/badge/Source-GitHub-6e40c9?style=for-the-badge&logo=github&logoColor=white)](https://github.com/blackingsplash/EFSM)
-[![Creator Roblox Profile](https://img.shields.io/badge/Get%20it%20on-Roblox-00A2FF?style=for-the-badge&logo=roblox&logoColor=white)](https://www.roblox.com/users/4083725238/profile)
 
 **EFSM** is an expiremental state machine model that, instead of utilizing lifecycle functions, utilizes a single callback as a state. This callback is thus ran when transition() function is called in an asynchronous thread. To avoid
 race condition, a CancellationToken design is implemented to regulate asynchrounous functions and soft kill. Although unfinished, it can still operate basic tasks such as initiating, transitioning state-to-state and
