@@ -44,13 +44,11 @@ end
 ]=]
 function StateManager.Init<T>(data: T, state: State<T>): StateManager
 	local self = {}
-	self.id = HttpService:GenerateGUID(false)
 	self.runningThread = nil
 	self.context = { Data = data, CurrentState = nil, PreviousState = nil }
 	self.cleanup = nil
 	self.active = false
 	self.transition_ls = {}
-	StateManager.Transition(self, state)
 	
 	return self :: StateManager;
 end
