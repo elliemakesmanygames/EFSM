@@ -77,6 +77,7 @@ function StateManager:Transition(state: State): ()
 	end
 
 	if state.Guard and not state.Guard(self.context.Data) then
+		self.active = false
 		error(`guard condition failed for state: {state.Name}`)
 	end
 
