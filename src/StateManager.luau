@@ -16,18 +16,18 @@ type Context<D=unknown,C=unknown,P=unknown> = {
 }
 
 type StateManager = {
-	Init: (data: unknown, state: State) -> StateManager,
-	Transition: (self: StateManager, state: State) -> (),
-	Destroy: (self: StateManager) -> (),
-	OnTransition: (self: StateManager, callback: (new_state_context: Context) -> ()) -> Disconnect,
+	read Init: (data: unknown, state: State) -> StateManager,
+	read Transition: (self: StateManager, state: State) -> (),
+	read Destroy: (self: StateManager) -> (),
+	read OnTransition: (self: StateManager, callback: (new_state_context: Context) -> ()) -> Disconnect,
 }
 
-local StateManager = {} :: StateManager
-StateManager.__index = StateManager
+const HttpService = game:GetService("HttpService")
+const StateManager = {} :: { StateManager }
 
-local function safeCB<T...>(...:T...) warn(`no function specified, resorted to default callback : {table.pack(...)}`) end
+const function safeCB<T...>(...:T...) warn(`no function specified, resorted to default callback : {table.pack(...)}`) end
 
-local function FireListener(listeners: { Listener }, context: Context): ()
+const function FireListener(listeners: { Listener }, context: Context): ()
 	for i = 1, #listeners do
 		listeners[i](context)
 	end
@@ -36,21 +36,21 @@ end
 --[=[
     @function Init
     @within StateManager
-
+	
+	@param 
     @param data -- the initial data for the state manager.
     @param state -- the initial state for the state manager.
 	@return StateManager
 ]=]
 function StateManager.Init<T>(data: T, state: State<T>): StateManager
-	local self = setmetatable({}, StateManager)
+	local self = {}
 	self.runningThread = nil
 	self.context = { Data = data, CurrentState = nil, PreviousState = nil }
 	self.cleanup = nil
 	self.active = false
 	self.transition_ls = {}
-	StateManager:Transition(state)
 	
-	return self :: StateManager
+	return self :: StateManager;
 end
 
 --[=[
@@ -60,7 +60,7 @@ end
     @param state -- the state to transition, must be of type State.
 	@return ()
 ]=]
-function StateManager:Transition(state: State): ()
+function StateManager.Transition(self: StateManager, state: State): ()
 	if self.active then
 		error("cannot transition to new state: concurrency control.")
 	end
@@ -100,7 +100,7 @@ end
 
 	@return ()
 ]=]
-function StateManager:Destroy(): ()
+function StateManager.Destroy(self: StateManager): ()
 	if self.cleanup then
         self.cleanup()
         self.cleanup = nil
@@ -128,7 +128,7 @@ end
 
 	@return ()
 ]=]
-function StateManager:OnTransition(fn: (new_state_context: Context) -> ()): Disconnect
+function StateManager.OnTransition(self: StateManager, fn: (new_state_context: Context) -> ()): Disconnect
 	local ls: { OnTransitionListener } = self.transition_ls
 	ls[#ls + 1] = fn
 	local running: boolean = true
