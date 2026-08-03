@@ -22,8 +22,7 @@ type StateManager = {
 	read OnTransition: (self: StateManager, callback: (new_state_context: Context) -> ()) -> Disconnect,
 }
 
-local StateManager = {} :: StateManager
-StateManager.__index = StateManager
+local StateManager = {}
 
 local function safeCB<T...>(...:T...) warn(`no function specified, resorted to default callback : {table.pack(...)}`) end
 
