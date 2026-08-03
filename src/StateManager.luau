@@ -44,11 +44,11 @@ end
 function StateManager.Init<T>(data: T, state: State<T>): StateManager
 	local self = setmetatable({}, StateManager)
 	self.runningThread = nil
-	self.context = { Data = data, CurrentState = state, PreviousState = nil }
+	self.context = { Data = data, CurrentState = nil, PreviousState = nil }
 	self.cleanup = nil
 	self.active = false
-
 	self.transition_ls = {}
+	StateManager:Transition(state)
 	
 	return self :: StateManager
 end
