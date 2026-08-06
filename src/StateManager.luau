@@ -15,6 +15,14 @@ type Context<D=unknown,C=unknown,P=unknown> = {
 	PreviousState: State<P>?
 }
 
+type StateMachine = {
+	runningThread: thread?,
+	context: Context,
+	cleanup: (() -> ())?,
+	active: boolean,
+	transition_ls: { OnTransitionListener }
+}
+
 type StateManager = {
 	read Init: (data: unknown, state: State) -> StateManager,
 	read Transition: (self: StateManager, state: State) -> (),
@@ -41,7 +49,7 @@ end
     @param state -- the initial state for the state manager.
 	@return StateManager
 ]=]
-function StateManager.Init<T>(data: T, state: State<T>): StateManager
+function StateManager.Init<T>(data: T, state: State<T>): StateMachine
 	local self = {}
 	self.runningThread = nil
 	self.context = { Data = data, CurrentState = nil, PreviousState = nil }
@@ -49,7 +57,7 @@ function StateManager.Init<T>(data: T, state: State<T>): StateManager
 	self.active = false
 	self.transition_ls = {}
 	
-	return self :: StateManager;
+	return self :: StateMachine;
 end
 
 --[=[
@@ -59,7 +67,7 @@ end
     @param state -- the state to transition, must be of type State.
 	@return ()
 ]=]
-function StateManager.Transition(self: StateManager, state: State): ()
+function StateManager.Transition(self: StateMachine, state: State): ()
 	if self.active then
 		error("cannot transition to new state: concurrency control.")
 	end
@@ -99,7 +107,7 @@ end
 
 	@return ()
 ]=]
-function StateManager.Destroy(self: StateManager): ()
+function StateManager.Destroy(self: StateMachine): ()
 	if self.cleanup then
         self.cleanup()
         self.cleanup = nil
@@ -127,7 +135,7 @@ end
 
 	@return ()
 ]=]
-function StateManager.OnTransition(self: StateManager, fn: (new_state_context: Context) -> ()): Disconnect
+function StateManager.OnTransition(self: StateMachine, fn: (new_state_context: Context) -> ()): Disconnect
 	local ls: { OnTransitionListener } = self.transition_ls
 	ls[#ls + 1] = fn
 	local running: boolean = true
@@ -146,4 +154,4 @@ function StateManager.OnTransition(self: StateManager, fn: (new_state_context: C
 	end
 end
 
-return StateManager
+return StateManager :: StateManager
